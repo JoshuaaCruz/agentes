@@ -150,7 +150,26 @@ winningAdd(GNimSum, T) :-
 // =============================================
 
 // ENDGAME: todas as torres têm 0 ou 1 pedra
-+!pickMove(T, 1) : allSmall & tower(T, 1).
++!pickMove(T, S) : allSmall <-
+    .findall(Tid, tower(Tid, 1), OneL);
+    .length(OneL, OneCount);
+    !endgame(OneCount, T, S).
+
+// Se houver um número PAR de torres unitárias (Vitória no Misère):
+// Apenas remova 1 pedra. Deixa um número ÍMPAR para o oponente.
++!endgame(OneCount, T, 1) : OneCount mod 2 == 0 <-
+    ?tower(T, 1).
+
+// Se houver um número ÍMPAR de torres unitárias (Derrota no Misère) 
+// E podemos adicionar pedras (Hail Mary):
+// Adiciona para quebrar o estado allSmall e forçar erro no oponente.
++!endgame(OneCount, T, -1) : OneCount mod 2 == 1 & lastRemoved(LR) & LR > 1 <-
+    .print("Hail Mary no Endgame! Adicionando pedras para quebrar o Misere.");
+    ?tower(T, 1).
+
+// Se houver número ÍMPAR e NÃO podemos adicionar pedras: Stall/Aceitar derrota.
++!endgame(OneCount, T, 1) : OneCount mod 2 == 1 <-
+    ?tower(T, 1).
 
 // JOGO NORMAL: calcular nim-sum e decidir estratégia
 +!pickMove(T, S) <-
@@ -179,7 +198,13 @@ winningAdd(GNimSum, T) :-
 +!strategy(GNimSum, _, _, T, S) : GNimSum \== 0 <-
     !findWin(GNimSum, T, S).
 
-// Caso 3: Grundy nim-sum = 0 → posição perdedora, stall com 1 pedra
+// ---> NOVO Caso 2.5: MILAGRE DE PARIDADE (Polarity Flip) <---
+// O Nim-Sum é 0, mas conseguimos adicionar pedras e manter o Nim-Sum em 0!
++!strategy(0, _, _, T, S) : winningAdd(0, T) <-
+    .print("Executando Polarity Flip! Roubando a posicao vencedora.");
+    S = -1.
+
+// Caso 3: Grundy nim-sum = 0 e sem milagre → stall com 1 pedra
 +!strategy(0, _, _, T, 1) <-
     ?tower(T, P) & P > 0.
 
@@ -221,19 +246,19 @@ winningAdd(GNimSum, T) :-
 // Usa regras no contexto: Jason para no primeiro match
 // =============================================
 
-// Opção A: usar -1 (adicionar pedras) se zera o Grundy nim-sum
-+!findWin(GNimSum, T, -1) : winningAdd(GNimSum, T) <- true.
-
-// Opção B: remoção ótima que zera o Grundy nim-sum
+// Opção A: remoção ótima que zera o Grundy nim-sum (preferido para acelerar a vitória)
 +!findWin(GNimSum, T, S) : winningRemoval(GNimSum, T, S) <- true.
+
+// Opção B: usar -1 (adicionar pedras) se zera o Grundy nim-sum (secundário)
++!findWin(GNimSum, T, -1) : winningAdd(GNimSum, T) <- true.
 
 // Opção C: restrições impedem jogada ótima → stall
 +!findWin(_, T, 1) <-
     ?tower(T, P) & P > 0.
 
-// =============================================
-// INCLUDES (necessários para integração CArtAgO)
-// =============================================
 
 { include("$jacamo/templates/common-cartago.asl") }
 { include("$jacamo/templates/common-moise.asl") }
+
+// uncomment the include below to have an agent compliant with its organisation
+//{ include("$moise/asl/org-obedient.asl") }
