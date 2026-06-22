@@ -54,13 +54,14 @@ gVal(S, S) :- not grundy(S, _).
 allSmall :- not(tower(_, S) & S > 1).
 
 // Regra para jogada de remoção vencedora (short-circuit via backtracking)
-// Encontra torre T e quantidade K tal que o novo Grundy nim-sum = 0
+// Busca uma jogada que zere o Nim-Sum.
+// OTIMIZADO: Força 'possibleNumber' primeiro e filtra as torres pelo tamanho (P >= K)
+// Isso evita que o Jason faça backtrack em milhares de combinações impossíveis.
 winningRemoval(GNimSum, T, K) :-
-    tower(T, P) & P > 0 &
-    possibleNumber(K) & K <= P &
-    NewP = P - K &
+    possibleNumber(K) &
+    tower(T, P) & P >= K &
     gVal(P, GOld) &
-    gVal(NewP, GNew) &
+    gVal(P - K, GNew) &
     xor(GOld, GNimSum, Target) &
     GNew == Target.
 
@@ -158,18 +159,20 @@ winningAdd(GNimSum, T) :-
 // Se houver um número PAR de torres unitárias (Vitória no Misère):
 // Apenas remova 1 pedra. Deixa um número ÍMPAR para o oponente.
 +!endgame(OneCount, T, 1) : OneCount mod 2 == 0 <-
-    ?tower(T, 1).
+    ?tower(T, 1);
+    .print(">>> ENDGAME (WINNING): Numero PAR de torres de 1 pedra. Tirando a torre ", T, " para prender o oponente.").
 
 // Se houver um número ÍMPAR de torres unitárias (Derrota no Misère) 
 // E podemos adicionar pedras (Hail Mary):
 // Adiciona para quebrar o estado allSmall e forçar erro no oponente.
 +!endgame(OneCount, T, -1) : OneCount mod 2 == 1 & lastRemoved(LR) & LR > 1 <-
-    .print("Hail Mary no Endgame! Adicionando pedras para quebrar o Misere.");
+    .print(">>> HAIL MARY ENDGAME! Numero IMPAR. Adicionando pedras na torre ", T, " para quebrar o Misere.");
     ?tower(T, 1).
 
 // Se houver número ÍMPAR e NÃO podemos adicionar pedras: Stall/Aceitar derrota.
 +!endgame(OneCount, T, 1) : OneCount mod 2 == 1 <-
-    ?tower(T, 1).
+    ?tower(T, 1);
+    .print(">>> ENDGAME (LOSING): Numero IMPAR. Sem adicao possivel. Fim de jogo iminente.").
 
 // JOGO NORMAL: calcular nim-sum e decidir estratégia
 +!pickMove(T, S) <-
@@ -192,23 +195,26 @@ winningAdd(GNimSum, T) :-
 // Caso 1: apenas 1 torre grande → correção Misère obrigatória
 +!strategy(_, 1, OneCount, T, S) <-
     ?tower(T, P) & P > 1;
+    .print(">>> MISERE ENGAGED! 1 Torre grande restante. Reduzindo torre ", T, " com ", P, " pedras.");
     !misere(P, OneCount, S).
 
 // Caso 2: Grundy nim-sum ≠ 0 → posição vencedora, buscar jogada ótima
 +!strategy(GNimSum, _, _, T, S) : GNimSum \== 0 <-
-    !findWin(GNimSum, T, S).
+    !findWin(GNimSum, T, S);
+    .print(">>> ATACANDO! Nim-Sum = ", GNimSum, " | Removendo ", S, " da torre ", T, ".").
 
 // ---> NOVO Caso 2.5: MILAGRE DE PARIDADE (Polarity Flip) <---
 // O Nim-Sum é 0, mas conseguimos adicionar pedras e manter o Nim-Sum em 0!
 +!strategy(0, _, _, T, S) : winningAdd(0, T) <-
-    .print("Executando Polarity Flip! Roubando a posicao vencedora.");
+    .print(">>> POLARITY FLIP! Nim-Sum = 0 | Adicionando pedras na torre ", T, " para roubar o turno!");
     S = -1.
 
 // Caso 3: Grundy nim-sum = 0 e sem milagre → stall com 1 pedra na MAIOR torre
 +!strategy(0, _, _, T, 1) <-
     .findall(P, tower(_, P), Sizes);
     .max(Sizes, MaxP);
-    ?tower(T, MaxP).
+    ?tower(T, MaxP);
+    .print(">>> DEFENDENDO. Nim-Sum = 0 | Fazendo STALL tirando 1 da maior torre (Torre ", T, " com ", MaxP, " pedras).").
 
 // =============================================
 // CORREÇÃO MISÈRE (1 torre grande restante)

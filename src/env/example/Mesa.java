@@ -156,7 +156,7 @@ public class Mesa extends Artifact {
 					prop = getObsProperty("round");
 					int newRound = prop.intValue()+1;
 					curPlayerId = (curPlayerId+1)%players.size();
-					printMesa(newRound);
+					//printMesa(newRound);
 					prop.updateValues(newRound,players.get(curPlayerId));
 				}
 

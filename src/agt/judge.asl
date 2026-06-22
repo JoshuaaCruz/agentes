@@ -5,8 +5,8 @@
 /* Initial goals */
 
 /*Você pode modificar aqui a quantidade máxima de torres, pedras por torre e número de partidas*/
-maxTowers(200).
-maxStonesByTower(200).
+maxTowers(5).
+maxStonesByTower(3).
 maxPartidas(5).
 
 endedGame :- not(tower(_,X) & X>0). //Test if there's a tower with more than 0 stones
@@ -31,7 +31,7 @@ otherplayer(A,B) :- player(A) & player(B) & A \== B.
     <- .print("hello world.");
        .date(Y,M,D); .time(H,Min,Sec,MilSec); // get current date & time
        +started(Y,M,D,H,Min,Sec);
-       !startGames(P, alunoInimigo, aluno). // Modifique aqui os nomes dos agentes que irão jogar
+       !startGames(P, alunoFlawed, aluno). // Modifique aqui os nomes dos agentes que irão jogar
 
 /*Empate*/
 +!startGames(0,Ag1,Ag2)[source(self)]: 
@@ -74,13 +74,14 @@ otherplayer(A,B) :- player(A) & player(B) & A \== B.
     setPossibleNumber(1);
     setPossibleNumber(2);
     setPossibleNumber(3);
-    setPossibleNumber(5);
-    setPossibleNumber(7);
+    // setPossibleNumber(4);
+    // setPossibleNumber(5);
+    // setPossibleNumber(7);
     setPossibleNumber(11);
     setPossibleNumber(17);
-    setPossibleNumber(29);
-    setPossibleNumber(53);
-    setPossibleNumber(113);
+    // setPossibleNumber(29);
+    // setPossibleNumber(53);
+    // setPossibleNumber(113);
 
     addPlayer(Ag1);
     addPlayer(Ag2);
@@ -106,8 +107,7 @@ otherplayer(A,B) :- player(A) & player(B) & A \== B.
 
 +start[source(percept)] <- .print("Game started!").
 +round(N,Who)[source(percept)] <- 
-    //.findall(tower(T,K),tower(T,K),L);
-    //.print("Round ", N, " Player ", Who, " Towers ", L);
+    .print("--- Round ", N, " | Turno de: ", Who, " ---");
     .wait(round(X, _) & X > N | endedGame, 500, EventTime);
     if (.ground(EventTime) & EventTime >= 500) {
         .print("Still same round ", N, " Player ", Who, " is sleeping ", EventTime);
