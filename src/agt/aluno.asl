@@ -57,7 +57,7 @@ allSmall :- not(tower(_, S) & S > 1).
 // Encontra torre T e quantidade K tal que o novo Grundy nim-sum = 0
 winningRemoval(GNimSum, T, K) :-
     tower(T, P) & P > 0 &
-    possibleNumber(K) & K =< P &
+    possibleNumber(K) & K <= P &
     NewP = P - K &
     gVal(P, GOld) &
     gVal(NewP, GNew) &
@@ -104,8 +104,8 @@ winningAdd(GNimSum, T) :-
 
 // Computação iterativa bottom-up de G(1) até G(Limit)
 +!computeLoop(N, Max) : N > Max.
-+!computeLoop(N, Max) : N =< Max <-
-    .findall(G, (possibleNumber(K) & K =< N & NK = N - K & grundy(NK, G)), Reach);
++!computeLoop(N, Max) : N <= Max <-
+    .findall(G, (possibleNumber(K) & K <= N & NK = N - K & grundy(NK, G)), Reach);
     !mex(Reach, 0, Val);
     +grundy(N, Val);
     !computeLoop(N + 1, Max).
@@ -204,9 +204,11 @@ winningAdd(GNimSum, T) :-
     .print("Executando Polarity Flip! Roubando a posicao vencedora.");
     S = -1.
 
-// Caso 3: Grundy nim-sum = 0 e sem milagre → stall com 1 pedra
+// Caso 3: Grundy nim-sum = 0 e sem milagre → stall com 1 pedra na MAIOR torre
 +!strategy(0, _, _, T, 1) <-
-    ?tower(T, P) & P > 0.
+    .findall(P, tower(_, P), Sizes);
+    .max(Sizes, MaxP);
+    ?tower(T, MaxP).
 
 // =============================================
 // CORREÇÃO MISÈRE (1 torre grande restante)
@@ -232,7 +234,7 @@ winningAdd(GNimSum, T) :-
         // Não podemos remover tudo. Evitar deixar exatamente 1 pedra
         // (inverteria a paridade e daria a vitória ao oponente).
         Avoid = P - 1;
-        .findall(X, (possibleNumber(X) & X =< P & X \== Avoid), Safe);
+        .findall(X, (possibleNumber(X) & X <= P & X \== Avoid), Safe);
         if (Safe \== []) {
             .max(Safe, S)
         } else {

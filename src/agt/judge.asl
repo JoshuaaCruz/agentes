@@ -5,9 +5,9 @@
 /* Initial goals */
 
 /*Você pode modificar aqui a quantidade máxima de torres, pedras por torre e número de partidas*/
-maxTowers(10).
-maxStonesByTower(40).
-maxPartidas(10).
+maxTowers(200).
+maxStonesByTower(200).
+maxPartidas(5).
 
 endedGame :- not(tower(_,X) & X>0). //Test if there's a tower with more than 0 stones
 otherplayer(A,B) :- player(A) & player(B) & A \== B.
@@ -31,7 +31,7 @@ otherplayer(A,B) :- player(A) & player(B) & A \== B.
     <- .print("hello world.");
        .date(Y,M,D); .time(H,Min,Sec,MilSec); // get current date & time
        +started(Y,M,D,H,Min,Sec);
-       !startGames(P, debi, aluno). // Modifique aqui os nomes dos agentes que irão jogar
+       !startGames(P, alunoInimigo, aluno). // Modifique aqui os nomes dos agentes que irão jogar
 
 /*Empate*/
 +!startGames(0,Ag1,Ag2)[source(self)]: 

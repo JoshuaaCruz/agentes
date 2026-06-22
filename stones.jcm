@@ -21,7 +21,7 @@ mas stones {
       focus: w.c1 
     }
 
-    agent debi: debi.asl {
+    agent alunoInimigo: alunoFlawed.asl {
       focus: w.c1 
     }
     workspace w {

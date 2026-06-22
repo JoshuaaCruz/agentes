@@ -23,9 +23,9 @@
     
     // play(1,1). /*Você vai precisar modificar aqui, na hora de escolher qual torre e quantas pedras você quer tirar dela.*/
     ?tower(T, S) & S > 0;
-    play(T,1);
+    play(T,1).
 
-+round(N, WhoPlays): .my_name(Me) & .term2string(Me, MeStr) & MeStr \== WhoPlays. /*I'm NOT the current player*/
++round(N, WhoPlays): .my_name(Me) & .term2string(Me, MeStr) & MeStr \== WhoPlays <- true. /*I'm NOT the current player*/
 
 { include("$jacamo/templates/common-cartago.asl") }
 { include("$jacamo/templates/common-moise.asl") }
