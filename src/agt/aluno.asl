@@ -13,7 +13,6 @@
 //    para maximizar turnos e chances de erro/timeout do oponente.
 
 /* Initial beliefs and rules */
-lastRemoved(0).
 
 /* Initial goals */
 !start.
@@ -35,47 +34,46 @@ xor(A, B, R) :-
     xor(A2, B2, R2) &
     R    = R2 * 2 + Bit.
 
-// XOR acumulado de uma lista de inteiros
+// XOR acumulado de uma lista de inteiros = Nim-Sum towers
 listXor([], 0).
 listXor([H|T], R) :-
     listXor(T, RT) &
     xor(H, RT, R).
 
-// Valor de Grundy com fallback para tamanho bruto
-// (caso a tabela não cubra um tamanho após adição via -1)
-gVal(S, G) :- grundy(S, G).
-gVal(S, S) :- not grundy(S, _).
+// Valor de Grundy/número nim com fallback para tamanho bruto caso precompute falhou
+grundyValue(S, G) :- grundy(S, G).
+grundyValue(S, S) :- not grundy(S, _).
 
 // Endgame: todas as torres têm no máximo 1 pedra
 allTowersOne :- not(tower(_, S) & S > 1).
 
-// Regra para jogar remoção vencedora (short-circuit via backtracking)
 // Busca uma jogada que zere o Nim-Sum.
 // OTIMIZADO: Força 'possibleNumber' primeiro e filtra as torres pelo tamanho (P >= K)
 // Isso evita que o Jason faça backtrack em milhares de combinações impossíveis.
 vencendoRemov(GNimSum, T, K) :-
     possibleNumber(K) &
     tower(T, P) & P >= K &
-    gVal(P, GOld) &
-    gVal(P - K, GNew) &
-    xor(GOld, GNimSum, Target) &
-    GNew == Target.
+    grundyValue(P, GvalCurr) &
+    grundyValue(P - K, GvalNew) &
+    xor(GvalCurr, GNimSum, Target) &
+    GvalNew == Target.
+    // Gvalue da towerX xor nim-sum sem towerX = 0 se iguais, logo oponente vai receber tabuleiro com nim-sum  0
 
 // Regra para jogada -1 (adição) vencedora
 // Verifica se adicionar floor(lastRemoved/2) a alguma torre zera o nim-sum
 vencendoAdd(GNimSum, T) :-
     lastRemoved(LR) & LR > 1 &
-    Add = (LR - LR mod 2) / 2 &
+    Add = LR div 2 & 
     tower(T, P) &
     NewP = P + Add &
-    gVal(P, GOld) &
-    gVal(NewP, GNew) &
-    xor(GOld, GNimSum, Target) &
-    GNew == Target.
+    grundyValue(P, GvalCurr) &
+    grundyValue(NewP, GvalNew) &
+    xor(GvalCurr, GNimSum, Target) &
+    GvalNew == Target. 
+    // Gvalue da towerX xor nim-sum sem towerX = 0 se iguais, logo oponente vai receber tabuleiro com nim-sum  0
 
 /* Percepts */
-// INÍCIO DO JOGO: Pré-computar valores de Grundy
-// Quando +start é percebido, pré-computa a tabela de Grundy antes do primeiro round (0.4s)
+// INÍCIO DO JOGO: Pré-computar valores de Grundy dentro dos 0.4s antes das rodadas
 +start <-
     -lastRemoved(_);
     +lastRemoved(0);
@@ -83,31 +81,31 @@ vencendoAdd(GNimSum, T) :-
 
 +!precompute <-
     .findall(S, tower(_, S), Sizes);
-    .max(Sizes, MaxSize);
-    .findall(K, possibleNumber(K), PNums);
-    .max(PNums, MaxPN);
-    Buffer = (MaxPN - MaxPN mod 2) / 2;
-    Limit = MaxSize + Buffer + 10;
+    .max(Sizes, MaxSizeTowers);
+    .findall(K, possibleNumber(K), PossibNums);
+    .max(PossibNums, MaxPN);
+    ExtraStones = MaxPN div 2;
+    Limit = MaxSizeTowers + ExtraStones;
     .abolish(grundy(_, _));
     +grundy(0, 0);
     !computeLoop(1, Limit).
 
-// Fallback: se precompute falhar, continuar sem tabela (gVal usa fallback)
+// Fallback: se precompute falhar, continuar sem tabela (grundyValue usa fallback)
 -!precompute <-
     .print("Aviso: falha na pre-computacao de Grundy. Usando fallback.").
 
 // Computação iterativa bottom-up de G(1) até G(Limit)
 +!computeLoop(N, Max) : N > Max.
 +!computeLoop(N, Max) : N <= Max <-
-    .findall(G, (possibleNumber(K) & K <= N & NK = N - K & grundy(NK, G)), Reach);
-    !mex(Reach, 0, Val);
-    +grundy(N, Val);
-    !computeLoop(N + 1, Max).
+    .findall(G, (possibleNumber(K) & K <= N & NewSize = N - K & grundy(NewSize, G)), PossibGValues);
+    !mex(PossibGValues, 0, Val);
+    +grundy(N, Val); //adiciona esse Val como Grandy do N dessa iteração
+    !computeLoop(N + 1, Max). //chama recursivamente o próximo N até que alcance Max
 
-// MEX: menor inteiro não-negativo que NÃO está no conjunto
-+!mex(Set, C, Result) : .member(C, Set) <-
+// MEX: Minimum Excluded Value (fora do conjunto)
++!mex(Set, C, Result) : .member(C, Set) <- //se estiver no set ent chama proximo
     !mex(Set, C + 1, Result).
-+!mex(Set, C, C) : not .member(C, Set).
++!mex(Set, C, C) : not .member(C, Set). //achou um que não está no set
 
 
 /*I'm the current player*/
@@ -135,82 +133,76 @@ vencendoAdd(GNimSum, T) :-
     play(T, 1);
     -+lastRemoved(1).
 
-// =============================================
-// SELEÇÃO DE JOGADA
-// =============================================
+
+//opções de jogada per se
 
 // ENDGAME: todas as torres têm 0 ou 1 pedra
 +!pickMove(T, S) : allTowersOne <-
-    .findall(Tid, tower(Tid, 1), OneL);
-    .length(OneL, OneCount);
+    .findall(Tid, tower(Tid, 1), TowID1stone);
+    .length(TowID1stone, OneCount);
     !endgame(OneCount, T, S).
 
 // Se houver um número PAR de torres unitárias (Vitória no Misère):
 // Apenas remova 1 pedra. Deixa um número ÍMPAR para o oponente.
 +!endgame(OneCount, T, 1) : OneCount mod 2 == 0 <-
     ?tower(T, 1);
-    .print(">>> ENDGAME (WINNING): Numero PAR de torres de 1 pedra. Tirando a torre ", T, " para prender o oponente.").
+    //.print(">>> ENDGAME (WINNING): Numero PAR de torres de 1 pedra. Tirando a torre ", T, " para prender o oponente.").
 
 // Se houver um número ÍMPAR de torres unitárias (Derrota no Misère) 
 // E podemos adicionar pedras (Hail Mary):
 // Adiciona para quebrar o estado allTowersOne e forçar erro no oponente.
 +!endgame(OneCount, T, -1) : OneCount mod 2 == 1 & lastRemoved(LR) & LR > 1 <-
-    .print(">>> HAIL MARY ENDGAME! Numero IMPAR. Adicionando pedras na torre ", T, " para quebrar o Misere.");
+    //.print(">>> HAIL MARY ENDGAME! Numero IMPAR. Adicionando pedras na torre ", T, " para quebrar o Misere.");
     ?tower(T, 1).
 
 // Se houver número ÍMPAR e NÃO podemos adicionar pedras: Stall/Aceitar derrota.
 +!endgame(OneCount, T, 1) : OneCount mod 2 == 1 <-
     ?tower(T, 1);
-    .print(">>> ENDGAME (LOSING): Numero IMPAR. Sem adicao possivel. Fim de jogo iminente.").
+    //.print(">>> ENDGAME (LOSING): Numero IMPAR. Sem adicao possivel. Fim de jogo iminente.").
 
 // JOGO NORMAL: calcular nim-sum e decidir estratégia
 +!pickMove(T, S) <-
     !getNimSum(GNimSum);
-    .findall(Tid, (tower(Tid, P) & P > 1), BigL);
-    .length(BigL, BigCount);
-    .findall(Tid2, tower(Tid2, 1), OneL);
-    .length(OneL, OneCount);
-    !strategy(GNimSum, BigCount, OneCount, T, S).
+    .findall(Tid, (tower(Tid, P) & P > 1), TowIDMANYstone);
+    .length(TowIDMANYstone, ManyCount);
+    .findall(Tid2, tower(Tid2, 1), TowID1stone);
+    .length(TowID1stone, OneCount);
+    !strategy(GNimSum, ManyCount, OneCount, T, S).
 
 // Calcula Nim-sum dos valores de Grundy de todas as torres
 +!getNimSum(Result) <-
-    .findall(G, (tower(_, S) & gVal(S, G)), GVals);
-    ?listXor(GVals, Result).
+    .findall(G, (tower(_, S) & grundyValue(S, G)), GVals);
+    ?listXor(GVals, Result). //Nim-sum de todos os GValues das towers
 
-// =============================================
-// ESTRATÉGIA POR CASO
-// =============================================
+//CASOS:
 
-// Caso 1: apenas 1 torre grande → correção Misère obrigatória
+// Caso 1: apenas 1 torre grande -> correção Misère obrigatória
 +!strategy(_, 1, OneCount, T, S) <-
     ?tower(T, P) & P > 1;
     .print(">>> MISERE ENGAGED! 1 Torre grande restante. Reduzindo torre ", T, " com ", P, " pedras.");
     !misere(P, OneCount, S).
 
-// Caso 2: Grundy nim-sum ≠ 0 → posição vencedora, buscar jogada ótima
+// Caso 2: Grundy nim-sum != 0 -> posição vencedora, buscar jogada ótima
 +!strategy(GNimSum, _, _, T, S) : GNimSum \== 0 <-
     !findWin(GNimSum, T, S);
-    .print(">>> ATACANDO! Nim-Sum = ", GNimSum, " | Removendo ", S, " da torre ", T, ".").
+    //.print(">>> ATACANDO! Nim-Sum = ", GNimSum, " | Removendo ", S, " da torre ", T, ".").
 
-// ---> NOVO Caso 2.5: MILAGRE DE PARIDADE (Polarity Flip) <---
 // O Nim-Sum é 0, mas conseguimos adicionar pedras e manter o Nim-Sum em 0!
 +!strategy(0, _, _, T, S) : vencendoAdd(0, T) <-
-    .print(">>> POLARITY FLIP! Nim-Sum = 0 | Adicionando pedras na torre ", T, " para roubar o turno!");
+    //.print(">>> POLARITY FLIP! Nim-Sum = 0 | Adicionando pedras na torre ", T, " para roubar o turno!");
     S = -1.
 
-// Caso 3: Grundy nim-sum = 0 e sem milagre → stall com 1 pedra na MAIOR torre
+// Caso 3: Grundy nim-sum = 0 e sem milagre -> stall com 1 pedra na MAIOR torre
 +!strategy(0, _, _, T, 1) <-
     .findall(P, tower(_, P), Sizes);
     .max(Sizes, MaxP);
     ?tower(T, MaxP);
-    .print(">>> DEFENDENDO. Nim-Sum = 0 | Fazendo STALL tirando 1 da maior torre (Torre ", T, " com ", MaxP, " pedras).").
+    //.print(">>> DEFENDENDO. Nim-Sum = 0 | Fazendo STALL tirando 1 da maior torre (Torre ", T, " com ", MaxP, " pedras).").
 
-// =============================================
-// CORREÇÃO MISÈRE (1 torre grande restante)
-// =============================================
+//  MISÈRE (1 torre grande restante)
 
-// OneCount par → reduzir torre grande para 1 pedra
-// Resultado: OneCount+1 (ímpar) torres unitárias para o oponente → oponente perde
+// OneCount par -> reduzir torre grande para 1 pedra
+// Resultado: OneCount+1 (ímpar) torres unitárias para o oponente -> oponente perde
 +!misere(P, OneCount, S) : OneCount mod 2 == 0 <-
     Needed = P - 1;
     if (Needed > 0 & possibleNumber(Needed)) {
@@ -220,8 +212,8 @@ vencendoAdd(GNimSum, T) :-
         S = 1
     }.
 
-// OneCount ímpar → remover todas as pedras da torre grande
-// Resultado: OneCount (ímpar) torres unitárias para o oponente → oponente perde
+// OneCount ímpar -> remover todas as pedras da torre grande
+// Resultado: OneCount (ímpar) torres unitárias para o oponente -> oponente perde
 +!misere(P, OneCount, S) : OneCount mod 2 == 1 <-
     if (possibleNumber(P)) {
         S = P
@@ -238,10 +230,7 @@ vencendoAdd(GNimSum, T) :-
         }
     }.
 
-// =============================================
-// BUSCA DE JOGADA VENCEDORA (short-circuit)
-// Usa regras no contexto: Jason para no primeiro match
-// =============================================
+// BUSCA DE JOGADA VENCEDORA (short-circuit). Jason para na primeira encontrada
 
 // Opção A: remoção ótima que zera o Grundy nim-sum (preferido para acelerar a vitória)
 +!findWin(GNimSum, T, S) : vencendoRemov(GNimSum, T, S) <- true.
@@ -249,7 +238,7 @@ vencendoAdd(GNimSum, T) :-
 // Opção B: usar -1 (adicionar pedras) se zera o Grundy nim-sum (secundário)
 +!findWin(GNimSum, T, -1) : vencendoAdd(GNimSum, T) <- true.
 
-// Opção C: restrições impedem jogada ótima → stall
+// Opção C: restrições impedem jogada ótima -> stall
 +!findWin(_, T, 1) <-
     ?tower(T, P) & P > 0.
 
