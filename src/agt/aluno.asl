@@ -13,13 +13,14 @@
 //    para maximizar turnos e chances de erro/timeout do oponente.
 
 /* Initial beliefs and rules */
+lastRemoved(0).
 
 /* Initial goals */
 !start.
 
 /* Plans */
 +!start : true <-
-    .print("Agente pronto.").
+    .print("Hello World. Agente pronto.").
 
 // XOR bit a bit de dois inteiros não-negativos
 xor(0, B, B).
@@ -109,7 +110,7 @@ vencendoAdd(GNimSum, T) :-
 
 
 /*I'm the current player*/
-+round(_, WhoPlays) : .my_name(Me) & .term2string(Me, WhoPlays) <-
++round(N, WhoPlays) : .my_name(Me) & .term2string(Me, WhoPlays) <-
     .print("It's round ", N, " I'm the player");
     !pickMove.
 
@@ -146,19 +147,18 @@ vencendoAdd(GNimSum, T) :-
 // Apenas remova 1 pedra. Deixa um número ÍMPAR para o oponente.
 +!endgame(OneCount, T, 1) : OneCount mod 2 == 0 <-
     ?tower(T, 1);
-    //.print(">>> ENDGAME (WINNING): Numero PAR de torres de 1 pedra. Tirando a torre ", T, " para prender o oponente.").
+    .print("Numero PAR de torres de 1 pedra. Tirando a torre ", T, " para prender o oponente.").
 
 // Se houver um número ÍMPAR de torres unitárias (Derrota no Misère) 
-// E podemos adicionar pedras (Hail Mary):
-// Adiciona para quebrar o estado allTowersOne e forçar erro no oponente.
+// E podemos adicionar pedras ent adiciona para quebrar o estado allTowersOne e tentar causar erro no oponente.
 +!endgame(OneCount, T, -1) : OneCount mod 2 == 1 & lastRemoved(LR) & LR > 1 <-
-    //.print(">>> HAIL MARY ENDGAME! Numero IMPAR. Adicionando pedras na torre ", T, " para quebrar o Misere.");
+    .print("Numero IMPAR. Adicionando pedras na torre ", T, " para quebrar o Misere.");
     ?tower(T, 1).
 
-// Se houver número ÍMPAR e NÃO podemos adicionar pedras: Stall/Aceitar derrota.
+// Se houver número ÍMPAR e NÃO podemos adicionar pedras: Stall
 +!endgame(OneCount, T, 1) : OneCount mod 2 == 1 <-
     ?tower(T, 1);
-    //.print(">>> ENDGAME (LOSING): Numero IMPAR. Sem adicao possivel. Fim de jogo iminente.").
+    .print("Numero IMPAR. Sem adicao possivel. Fim de jogo iminente.").
 
 // JOGO NORMAL: calcular nim-sum e decidir estratégia
 +!pickMove(T, S) <-
@@ -179,25 +179,25 @@ vencendoAdd(GNimSum, T) :-
 // Caso 1: apenas 1 torre grande -> correção Misère obrigatória
 +!strategy(_, 1, OneCount, T, S) <-
     ?tower(T, P) & P > 1;
-    .print(">>> MISERE ENGAGED! 1 Torre grande restante. Reduzindo torre ", T, " com ", P, " pedras.");
+    .print("1 Torre grande restante. Reduzindo torre ", T, " com ", P, " pedras.");
     !misere(P, OneCount, S).
 
 // Caso 2: Grundy nim-sum != 0 -> posição vencedora, buscar jogada ótima
 +!strategy(GNimSum, _, _, T, S) : GNimSum \== 0 <-
-    !findWin(GNimSum, T, S);
-    //.print(">>> ATACANDO! Nim-Sum = ", GNimSum, " | Removendo ", S, " da torre ", T, ".").
+    !findWin(GNimSum, T, S).
+    //.print("Nim-Sum = ", GNimSum, " | Removendo ", S, " da torre ", T, ".").
 
 // O Nim-Sum é 0, mas conseguimos adicionar pedras e manter o Nim-Sum em 0!
 +!strategy(0, _, _, T, S) : vencendoAdd(0, T) <-
-    //.print(">>> POLARITY FLIP! Nim-Sum = 0 | Adicionando pedras na torre ", T, " para roubar o turno!");
+    .print("Nim-Sum = 0 | Mas possivel adicionar pedras na torre e manter 0", T, "!");
     S = -1.
 
-// Caso 3: Grundy nim-sum = 0 e sem milagre -> stall com 1 pedra na MAIOR torre
+// Caso 3: Grundy nim-sum = 0 e sem poder adicionar -> stall com 1 pedra na MAIOR torre
 +!strategy(0, _, _, T, 1) <-
     .findall(P, tower(_, P), Sizes);
     .max(Sizes, MaxP);
     ?tower(T, MaxP);
-    //.print(">>> DEFENDENDO. Nim-Sum = 0 | Fazendo STALL tirando 1 da maior torre (Torre ", T, " com ", MaxP, " pedras).").
+    .print("Nim-Sum = 0 | Fazendo STALL tirando 1 da maior torre (Torre ", T, " com ", MaxP, " pedras).").
 
 //  MISÈRE (1 torre grande restante)
 

@@ -31,7 +31,7 @@ otherplayer(A,B) :- player(A) & player(B) & A \== B.
     <- .print("hello world.");
        .date(Y,M,D); .time(H,Min,Sec,MilSec); // get current date & time
        +started(Y,M,D,H,Min,Sec);
-       !startGames(P, alunoFlawed, aluno). // Modifique aqui os nomes dos agentes que irão jogar
+       !startGames(P, debi, aluno). // Modifique aqui os nomes dos agentes que irão jogar
 
 /*Empate*/
 +!startGames(0,Ag1,Ag2)[source(self)]: 
