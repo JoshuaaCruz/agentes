@@ -1,19 +1,17 @@
-// Agent aluno.asl - Estratégia Sprague-Grundy Nim Misère
-//
-// Estratégia:
-// 1. Pré-computa valores de Grundy (MEX) na fase +start para o conjunto
-//    de possibleNumbers recebido em cada partida. Armazena como crenças grundy(N, G).
-// 2. Usa Nim-sum sobre valores de Grundy (não tamanhos brutos) para
-//    avaliar posições corretamente com movimentos restritos.
-// 3. Busca jogada vencedora por curto-circuito (unificação de regras),
-//    parando na primeira jogada válida encontrada.
-// 4. Correção Misère: quando resta apenas 1 torre grande, ajusta para
-//    deixar número ÍMPAR de torres unitárias ao oponente.
-// 5. Fallback: quando em posição perdedora, stall (remove 1 pedra)
-//    para maximizar turnos e chances de erro/timeout do oponente.
+// Estratégia com Sprague-Grundy Nim  e Misère
+
+// 1. Pré-computa valores de Grundy (MEX) na fase +start para o conjunto de possibleNumbers recebido em cada partida
+//Armazena como crenças grundy(N, G)
+
+// 2. Usa Nim-sum sobre valores de Grundy (não tamanhos brutos) para avaliar posições corretamente com movimentos restritos
+
+// 3. Busca jogada vencedora, parando na primeira jogada válida encontrada
+
+// 4. Correção Misère: quando resta apenas 1 torre grande, ajusta para deixar número ÍMPAR de torres unitárias ao oponente
+
+// 5. Fallback: quando em posição perdedora, stall (remove 1 pedra) para maximizar turnos e chances de erro/timeout do oponente.
 
 /* Initial beliefs and rules */
-lastRemoved(0).
 
 /* Initial goals */
 !start.
@@ -29,11 +27,11 @@ xor(A, B, R) :-
     A > 0 & B > 0 &
     BitA = A mod 2 &
     BitB = B mod 2 &
-    Bit  = (BitA + BitB) mod 2 &
-    A2   = (A - BitA) / 2 &
-    B2   = (B - BitB) / 2 &
+    Bit = (BitA + BitB) mod 2 &
+    A2 = (A - BitA) div 2 &
+    B2 = (B - BitB) div 2 &
     xor(A2, B2, R2) &
-    R    = R2 * 2 + Bit.
+    R = R2 * 2 + Bit.
 
 // XOR acumulado de uma lista de inteiros = Nim-Sum towers
 listXor([], 0).
@@ -49,8 +47,8 @@ grundyValue(S, S) :- not grundy(S, _).
 allTowersOne :- not(tower(_, S) & S > 1).
 
 // Busca uma jogada que zere o Nim-Sum.
-// OTIMIZADO: Força 'possibleNumber' primeiro e filtra as torres pelo tamanho (P >= K)
-// Isso evita que o Jason faça backtrack em milhares de combinações impossíveis.
+// Força 'possibleNumber' primeiro e filtra as torres pelo tamanho (P >= K)
+// Isso evita que o Jason faça backtrack desnecessário
 vencendoRemov(GNimSum, T, K) :-
     possibleNumber(K) &
     tower(T, P) & P >= K &
@@ -85,8 +83,7 @@ vencendoAdd(GNimSum, T) :-
     .max(Sizes, MaxSizeTowers);
     .findall(K, possibleNumber(K), PossibNums);
     .max(PossibNums, MaxPN);
-    ExtraStones = MaxPN div 2;
-    Limit = MaxSizeTowers + ExtraStones;
+    Limit = MaxSizeTowers + MaxPN;
     .abolish(grundy(_, _));
     +grundy(0, 0);
     !computeLoop(1, Limit).
@@ -150,7 +147,7 @@ vencendoAdd(GNimSum, T) :-
     .print("Numero PAR de torres de 1 pedra. Tirando a torre ", T, " para prender o oponente.").
 
 // Se houver um número ÍMPAR de torres unitárias (Derrota no Misère) 
-// E podemos adicionar pedras ent adiciona para quebrar o estado allTowersOne e tentar causar erro no oponente.
+// E podemos adicionar pedras ent adiciona para quebrar o estado allTowersOne e tentar causar erro no oponente
 +!endgame(OneCount, T, -1) : OneCount mod 2 == 1 & lastRemoved(LR) & LR > 1 <-
     .print("Numero IMPAR. Adicionando pedras na torre ", T, " para quebrar o Misere.");
     ?tower(T, 1).
@@ -208,8 +205,12 @@ vencendoAdd(GNimSum, T) :-
     if (Needed > 0 & possibleNumber(Needed)) {
         S = Needed
     } else {
-        // Não conseguimos reduzir para 1 exatamente. Stall.
-        S = 1
+        .findall(X, (possibleNumber(X) & X < Needed), Smaller);
+        if (Smaller \== []) {
+            .max(Smaller, S) //getting closest value to Needed if Needed not available
+        } else {
+            S = 1
+        }
     }.
 
 // OneCount ímpar -> remover todas as pedras da torre grande
@@ -218,19 +219,17 @@ vencendoAdd(GNimSum, T) :-
     if (possibleNumber(P)) {
         S = P
     } else {
-        // Não podemos remover tudo. Evitar deixar exatamente 1 pedra
-        // (inverteria a paridade e daria a vitória ao oponente).
+        // Não podemos remover tudo. Evitar deixar exatamente 1 pedra (inverteria qtd towers uma pedra e daria a vitória ao oponente).
         Avoid = P - 1;
         .findall(X, (possibleNumber(X) & X <= P & X \== Avoid), Safe);
         if (Safe \== []) {
             .max(Safe, S)
         } else {
-            // Forçados a situação ruim, stall
             S = 1
         }
     }.
 
-// BUSCA DE JOGADA VENCEDORA (short-circuit). Jason para na primeira encontrada
+// buscando jogada vencedora. Jason para na primeira encontrada
 
 // Opção A: remoção ótima que zera o Grundy nim-sum (preferido para acelerar a vitória)
 +!findWin(GNimSum, T, S) : vencendoRemov(GNimSum, T, S) <- true.
